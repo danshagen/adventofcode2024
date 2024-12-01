@@ -2,7 +2,17 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const input = @embedFile("input.txt");
 
-pub fn main() !void {}
+pub fn main() !void {
+    var first: [1000]u32 = undefined;
+    var second: [1000]u32 = undefined;
+
+    std.debug.print("extracting lists...\n", .{});
+    try extractLists(input, &first, &second);
+
+    std.debug.print("calculating total distance...\n", .{});
+    const result = totalDistance(&first, &second);
+    std.debug.print("total distance: {d}\n", .{result});
+}
 
 fn extractLists(string: []const u8, first: []u32, second: []u32) !void {
     // split on space and newline
