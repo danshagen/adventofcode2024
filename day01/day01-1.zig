@@ -28,6 +28,24 @@ fn extractLists(string: []const u8, first: []u32, second: []u32) !void {
     }
 }
 
+test extractLists {
+    const example =
+        \\ 3   4
+        \\ 4   3
+        \\ 2   5
+        \\ 1   3
+        \\ 3   9
+        \\ 3   3
+    ;
+
+    var first: [6]u32 = undefined;
+    var second: [6]u32 = undefined;
+
+    try extractLists(example, &first, &second);
+    try expectEqual([_]u32{ 3, 4, 2, 1, 3, 3 }, first);
+    try expectEqual([_]u32{ 4, 3, 5, 3, 9, 3 }, second);
+}
+
 fn totalDistance(first: []u32, second: []u32) u32 {
     // sort arrays into ascending
     std.mem.sort(@TypeOf(first[0]), first, {}, comptime std.sort.asc(@TypeOf(first[0])));
@@ -44,21 +62,8 @@ fn totalDistance(first: []u32, second: []u32) u32 {
 }
 
 test totalDistance {
-    const example =
-        \\ 3   4
-        \\ 4   3
-        \\ 2   5
-        \\ 1   3
-        \\ 3   9
-        \\ 3   3
-    ;
-
-    var first: [6]u32 = undefined;
-    var second: [6]u32 = undefined;
-
-    try extractLists(example, &first, &second);
-    try expectEqual([_]u32{ 3, 4, 2, 1, 3, 3 }, first);
-    try expectEqual([_]u32{ 4, 3, 5, 3, 9, 3 }, second);
+    var first: [6]u32 = [_]u32{ 3, 4, 2, 1, 3, 3 };
+    var second: [6]u32 = [_]u32{ 4, 3, 5, 3, 9, 3 };
 
     try expectEqual(11, totalDistance(&first, &second));
 }
