@@ -28,3 +28,5 @@ zig run day01/day01-01-zig
 to get the puzzle results.
 My code editor, Sublime Text, runs those commands automatically with the Zig language package.
 This makes development quite straightforward.
+
+*Zig version `0.14.0-dev.2340+182cdf74b`*
