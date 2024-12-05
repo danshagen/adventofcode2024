@@ -2,11 +2,22 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
 pub fn main() !void {
-    //var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    //defer arena.deinit();
-    //const allocator = arena.allocator();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
-    //const input = @embedFile("input.txt");
+    const input = @embedFile("input.txt");
+    const page_rules = try extractPageRules(input, allocator);
+    const updates = try extractUpdates(input, allocator);
+
+    std.debug.print("calculating sum of middle page numbers of correct updates...\n", .{});
+    var sum: usize = 0;
+    for (updates) |update| {
+        if (getPrintMidlePage(update, page_rules)) |middle_page| {
+            sum += middle_page;
+        }
+    }
+    std.debug.print("sum of middle page numbers: {d}\n", .{sum});
 }
 
 const example =
@@ -41,7 +52,8 @@ const example =
 ;
 
 const Set = std.AutoHashMap(u32, void);
-fn extractPageRules(input: []const u8, allocator: std.mem.Allocator) !std.AutoHashMap(u32, Set) {
+const Rules = std.AutoHashMap(u32, Set);
+fn extractPageRules(input: []const u8, allocator: std.mem.Allocator) !Rules {
     var map = std.AutoHashMap(u32, Set).init(allocator);
 
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
@@ -125,4 +137,43 @@ test extractUpdates {
 
     const updates = try extractUpdates(example, allocator);
     std.debug.print("\n{any}", .{updates});
+}
+
+fn getPrintMidlePage(pages: []const u32, rules: Rules) ?usize {
+    // go through all numbers and check if any rules are broken
+    // looking up a number gives the numbers that have to follow
+    // this means, that if any numbers in the rule are found before
+    // the print order is incorrect
+    for (pages, 0..) |page, i| {
+        // for all page numbers in print order
+        if (rules.get(page)) |rule| {
+            // check rule
+            var rule_pages = rule.keyIterator();
+            while (rule_pages.next()) |rule_page| {
+                // check if any of the pages in the rules happen before our index
+                if (std.mem.indexOfScalar(u32, pages, rule_page.*)) |rule_page_index| {
+                    if (rule_page_index < i)
+                        return null;
+                }
+            }
+        }
+    }
+
+    return pages[pages.len / 2];
+}
+
+test getPrintMidlePage {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const page_rules = try extractPageRules(example, allocator);
+    const updates = try extractUpdates(example, allocator);
+
+    try expectEqual(61, getPrintMidlePage(updates[0], page_rules).?);
+    try expectEqual(53, getPrintMidlePage(updates[1], page_rules).?);
+    try expectEqual(29, getPrintMidlePage(updates[2], page_rules).?);
+    try expectEqual(null, getPrintMidlePage(updates[3], page_rules));
+    try expectEqual(null, getPrintMidlePage(updates[4], page_rules));
+    try expectEqual(null, getPrintMidlePage(updates[5], page_rules));
 }
