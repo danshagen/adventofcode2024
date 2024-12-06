@@ -52,9 +52,9 @@ const example =
 ;
 
 const Set = std.AutoHashMap(u32, void);
-const Rules = std.AutoHashMap(u32, Set);
+const Rules = std.AutoHashMap(u32, *Set);
 fn extractPageRules(input: []const u8, allocator: std.mem.Allocator) !Rules {
-    var map = std.AutoHashMap(u32, Set).init(allocator);
+    var map = std.AutoHashMap(u32, *Set).init(allocator);
 
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
     while (lines.next()) |line| {
@@ -70,20 +70,21 @@ fn extractPageRules(input: []const u8, allocator: std.mem.Allocator) !Rules {
 
         // check if a rule for the first number already exists
         if (map.contains(first)) {
-            var rule = map.get(first).?;
+            const rule = map.get(first).?;
             // put into Set (HashMap(u32, void)) -> do not care if already exists, just put
-            try rule.put(second, {});
+            try rule.*.put(second, {});
             std.debug.print("\n{d} append {d}: ", .{ first, second });
-            var it = rule.keyIterator();
+            var it = rule.*.keyIterator();
             while (it.next()) |key| {
                 std.debug.print("{d} ", .{key.*});
             }
         } else {
-            var new_rule = Set.init(allocator);
-            try new_rule.put(second, {});
+            const new_rule = try allocator.create(Set);
+            new_rule.* = Set.init(allocator);
+            try new_rule.*.put(second, {});
             try map.put(first, new_rule);
             std.debug.print("\n{d} create {d}: ", .{ first, second });
-            var it = new_rule.keyIterator();
+            var it = new_rule.*.keyIterator();
             while (it.next()) |key| {
                 std.debug.print("{d} ", .{key.*});
             }
