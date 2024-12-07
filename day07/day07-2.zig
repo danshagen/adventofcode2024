@@ -10,8 +10,10 @@ pub fn main() !void {
     const calibrations = try parseInput(allocator, input);
     var sum: usize = 0;
     for (calibrations) |calibration| {
-        if (try checkCalibration(allocator, calibration)) |value|
-            sum += value;
+        // std.debug.print("\ncheck calibration for {d}: {any}... ", .{ calibration.result, calibration.values });
+        if (try checkCalibration(calibration)) {
+            sum += calibration.values[calibration.values.len / 2];
+        }
     }
     std.debug.print("\n\nTotal calibration result: {d}", .{sum});
 }
@@ -36,53 +38,57 @@ fn parseInput(allocator: std.mem.Allocator, input: []const u8) ![]Calibration {
 }
 
 const Calibration = struct { result: u64, values: []u64 };
-/// Check if the calibration equation works by trying all possible combinations
-/// of operators. Returns the calibration result if the equation can be made to
-/// work, null if not.
-fn checkCalibration(allocator: std.mem.Allocator, calibration: Calibration) !?u64 {
-    var list = std.ArrayList(u64).init(allocator);
-    defer list.deinit();
+fn checkCalibration(calibration: Calibration) !bool {
+    // compare the value with the result, if there is only one element in values
+    if (calibration.values.len == 1)
+        return calibration.result == calibration.values[0];
 
-    std.debug.print("\ncheck calibration for {d}: {any}...", .{ calibration.result, calibration.values });
+    // go through values backwards and check recursively
+    const value = calibration.values[calibration.values.len - 1];
+    const result = calibration.result;
 
-    // first operations
-    try list.append(calibration.values[0] + calibration.values[1]);
-    try list.append(calibration.values[0] * calibration.values[1]);
-    try list.append(concat(calibration.values[0], calibration.values[1]));
-    for (calibration.values[2..]) |value| {
-        // go backwards through all items in list and replace the value with
-        // two values for both operations
-        var i: usize = list.items.len - 1;
-        while (true) {
-            const last = list.orderedRemove(i);
-            // add +
-            const a = last + value;
-            if (a <= calibration.result)
-                try list.append(a);
-            // mul *
-            const m = last * value;
-            if (m <= calibration.result)
-                try list.append(m);
-            // concat |
-            const c = concat(last, value);
-            if (c <= calibration.result)
-                try list.append(c);
-
-            if (i == 0)
-                break;
-            i -= 1;
+    // addition -> subtraction
+    // skip, if value is smaller
+    if (result > value) {
+        const a = result - value;
+        if (try checkCalibration(.{ .result = a, .values = calibration.values[0 .. calibration.values.len - 1] })) {
+            // std.debug.print("+", .{});
+            return true;
         }
     }
 
-    for (list.items) |value| {
-        if (value == calibration.result) {
-            std.debug.print(" {d}.", .{value});
-            return value;
+    // multiplication -> division
+    // skip, if remainder is not 0
+    const rem = result % value;
+    if (rem == 0) {
+        const m = result / value;
+        if (try checkCalibration(.{ .result = m, .values = calibration.values[0 .. calibration.values.len - 1] })) {
+            // std.debug.print("*", .{});
+            return true;
         }
     }
 
-    std.debug.print(" null.", .{});
-    return null;
+    // concat -> try to remove value
+    if (result > value) {
+        var num_digits: usize = 0;
+        var _value = value;
+        while (_value > 0) {
+            _value /= 10;
+            num_digits += 1;
+        }
+        var c = result - value;
+        // skip if there is a remainder -> value was not a subset of result
+        // (correct would be for example: 1234 - 34 = 1200, 1200 % 100 = 0)
+        if (c % std.math.pow(u64, 10, num_digits) == 0) {
+            c /= num_digits * std.math.pow(u64, 10, num_digits);
+            if (try checkCalibration(.{ .result = c, .values = calibration.values[0 .. calibration.values.len - 1] })) {
+                // std.debug.print("|", .{});
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 fn concat(first: u64, second: u64) u64 {
@@ -118,13 +124,13 @@ test checkCalibration {
     }
     std.debug.print("\n{any}\n", .{parsed});
 
-    try expectEqual(190, (try checkCalibration(allocator, parsed[0])).?);
-    try expectEqual(3267, (try checkCalibration(allocator, parsed[1])).?);
-    try expectEqual(null, try checkCalibration(allocator, parsed[2]));
-    try expectEqual(156, (try checkCalibration(allocator, parsed[3])).?);
-    try expectEqual(7290, (try checkCalibration(allocator, parsed[4])).?);
-    try expectEqual(null, try checkCalibration(allocator, parsed[5]));
-    try expectEqual(192, (try checkCalibration(allocator, parsed[6])).?);
-    try expectEqual(null, try checkCalibration(allocator, parsed[7]));
-    try expectEqual(292, (try checkCalibration(allocator, parsed[8])).?);
+    try expectEqual(true, try checkCalibration(parsed[0]));
+    try expectEqual(true, try checkCalibration(parsed[1]));
+    try expectEqual(false, try checkCalibration(parsed[2]));
+    try expectEqual(true, try checkCalibration(parsed[3]));
+    try expectEqual(true, try checkCalibration(parsed[4]));
+    try expectEqual(false, try checkCalibration(parsed[5]));
+    try expectEqual(true, try checkCalibration(parsed[6]));
+    try expectEqual(false, try checkCalibration(parsed[7]));
+    try expectEqual(true, try checkCalibration(parsed[8]));
 }
