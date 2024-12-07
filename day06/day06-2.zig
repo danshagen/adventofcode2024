@@ -21,9 +21,10 @@ fn makeArrayFromInput(allocator: std.mem.Allocator, input: []const u8) ![]const 
     return try list.toOwnedSlice();
 }
 
+// use ArrayHashMap so that order is kept (important so that the start position is at index 0)
+const Positions = std.AutoArrayHashMap(Position, void);
 /// Returns the number of positions of the guard when patrolling until off the area.
 /// If the guard gets stuck, returns null.
-const Positions = std.AutoHashMap(Position, void);
 fn predictRoutePositions(allocator: std.mem.Allocator, area: []const []const u8) !?Positions {
     var guard: Guard = undefined;
     var positions = Positions.init(allocator);
@@ -51,7 +52,7 @@ fn predictRoutePositions(allocator: std.mem.Allocator, area: []const []const u8)
     }
     try positions.put(guard.position, {});
     try steps.append(guard);
-    std.debug.print("\nguard: {any}", .{guard});
+    // std.debug.print("\nguard: {any}", .{guard});
 
     // while the guard has position in the area, move the guard one step
     while (true) {
@@ -64,19 +65,19 @@ fn predictRoutePositions(allocator: std.mem.Allocator, area: []const []const u8)
 
         // check if next position is outside of area
         if (next.x >= area.len or next.y >= area[0].len) {
-            std.debug.print("\noutside area! ({any})", .{next});
+            // std.debug.print("\noutside area! ({any})", .{next});
             break;
         }
 
         // check for obstacle
         if (area[next.y][next.x] == '#') {
-            std.debug.print("\n# obstacle!", .{});
+            // std.debug.print("\n# obstacle!", .{});
             guard.direction = @enumFromInt(@addWithOverflow(@intFromEnum(guard.direction), 1)[0]);
             continue;
         }
 
         // move position
-        std.debug.print("\nstep {any} ({d},{d})", .{ guard.direction, next.x, next.y });
+        // std.debug.print("\nstep {any} ({d},{d})", .{ guard.direction, next.x, next.y });
         guard.position = next;
 
         // update steps and positions
@@ -87,7 +88,7 @@ fn predictRoutePositions(allocator: std.mem.Allocator, area: []const []const u8)
             for (steps.items) |step| {
                 // if position and direction are the same, the guard is caught in a loop
                 if (std.meta.eql(step, guard)) {
-                    std.debug.print("\n### caught in a loop!", .{});
+                    // std.debug.print("\n### caught in a loop!", .{});
                     positions.deinit();
                     return null;
                 }
@@ -97,15 +98,15 @@ fn predictRoutePositions(allocator: std.mem.Allocator, area: []const []const u8)
     }
 
     // print area like in example
-    std.debug.print("\nresult:", .{});
-    for (area, 0..) |row, y| {
-        std.debug.print("\n|", .{});
-        for (row, 0..) |ch, x| {
-            const char = if (positions.contains(.{ .x = x, .y = y })) 'X' else ch;
-            std.debug.print("{c}", .{char});
-        }
-        std.debug.print("|", .{});
-    }
+    // std.debug.print("\nresult:", .{});
+    // for (area, 0..) |row, y| {
+    //     std.debug.print("\n|", .{});
+    //     for (row, 0..) |ch, x| {
+    //         const char = if (positions.contains(.{ .x = x, .y = y })) 'X' else ch;
+    //         std.debug.print("{c}", .{char});
+    //     }
+    //     std.debug.print("|", .{});
+    // }
 
     return positions;
 }
@@ -160,10 +161,36 @@ const Direction = enum(u2) { up, right, down, left };
 const Guard = struct { position: Position, direction: Direction };
 
 fn howManyGuardObstructions(allocator: std.mem.Allocator, area: []const []const u8) !usize {
-    _ = allocator;
-    _ = area;
+    var count: usize = 0;
 
-    return 0;
+    // place an obstruction at every point of the guard positions (except the start)
+    var positions = try predictRoutePositions(allocator, area);
+    defer positions.?.deinit();
+    for (positions.?.keys()[1..]) |position| {
+        var area_list = std.ArrayList([]u8).init(allocator);
+        defer area_list.deinit();
+        for (area) |row| {
+            const new_row: []u8 = try allocator.alloc(u8, row.len);
+            @memcpy(new_row, row);
+            try area_list.append(new_row);
+        }
+        defer {
+            for (area_list.items) |array|
+                allocator.free(array);
+        }
+
+        const new_area = area_list.items;
+        new_area[position.y][position.x] = '#';
+        var new_positions = try predictRoutePositions(allocator, new_area);
+        if (new_positions == null) {
+            // got guard to enter loop!
+            count += 1;
+        } else {
+            new_positions.?.deinit();
+        }
+    }
+
+    return count;
 }
 
 test howManyGuardObstructions {
