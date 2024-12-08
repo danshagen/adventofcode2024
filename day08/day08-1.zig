@@ -10,21 +10,13 @@ pub fn main() !void {
     var antinodes = std.AutoHashMap(Position, void).init(allocator);
 
     std.debug.print("Calculating all antinodes...", .{});
-    const antennas = try parseInput(allocator, input);
-    var antenna_types = antennas.keyIterator();
-    while (antenna_types.next()) |antenna_type| {
-        std.debug.print("\n{c}: {any}", .{ antenna_type.*, antennas.get(antenna_type.*) });
-        try getAllAntinodes(
-            antennas.get(antenna_type.*).?,
-            &antinodes,
-            50,
-            50,
-        );
-    }
+    const map = try parseInput(allocator, input);
+    try getAllAntinodes(map, &antinodes);
     std.debug.print("\n\nNumber of antinodes: {d}", .{antinodes.count()});
 }
 
 const Antennas = std.AutoHashMap(u8, []Position);
+const Map = struct { antennas: Antennas, width: usize, height: usize };
 
 const Position = struct {
     x: isize,
@@ -59,8 +51,10 @@ test calculateAntinodes {
     try expectEqual([2]Position{ .{ .x = 3, .y = 1 }, .{ .x = 6, .y = 7 } }, calculateAntinodes(.{ .x = 4, .y = 3 }, .{ .x = 5, .y = 5 }));
 }
 
-fn parseInput(allocator: std.mem.Allocator, input: []const u8) !Antennas {
+fn parseInput(allocator: std.mem.Allocator, input: []const u8) !Map {
     var map = std.AutoHashMap(u8, *std.ArrayList(Position)).init(allocator);
+    var width: usize = undefined;
+    var height: usize = undefined;
     defer map.deinit();
 
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
@@ -84,7 +78,9 @@ fn parseInput(allocator: std.mem.Allocator, input: []const u8) !Antennas {
             }
             x += 1;
         }
+        width = @intCast(x);
     }
+    height = @intCast(y);
 
     var final_map = Antennas.init(allocator);
 
@@ -95,7 +91,11 @@ fn parseInput(allocator: std.mem.Allocator, input: []const u8) !Antennas {
         try final_map.put(antenna_type.*, try list_ptr.*.toOwnedSlice());
     }
 
-    return final_map;
+    return Map{
+        .antennas = final_map,
+        .width = width,
+        .height = height,
+    };
 }
 
 test parseInput {
@@ -115,30 +115,29 @@ test parseInput {
         \\..........
     ;
 
-    const antennas = try parseInput(allocator, example);
-    var antenna_types = antennas.keyIterator();
+    const map = try parseInput(allocator, example);
+    var antenna_types = map.antennas.keyIterator();
     while (antenna_types.next()) |antenna_type| {
-        std.debug.print("\n{c}: {any}", .{ antenna_type.*, antennas.get(antenna_type.*) });
+        std.debug.print("\n{c}: {any}", .{ antenna_type.*, map.antennas.get(antenna_type.*) });
     }
 }
 
-fn getAllAntinodes(antennas: []Position, antinodes: *std.AutoHashMap(Position, void), width: usize, height: usize) !void {
-    std.debug.print("\ngetAllAntinodes for ", .{});
-    for (antennas) |pos|
-        std.debug.print("({d},{d}) ", .{ pos.x, pos.y });
-    for (antennas, 1..) |first, i| {
-        for (antennas[i..]) |second| {
-            std.debug.print("\n({d},{d}) - ({d},{d})", .{ first.x, first.y, second.x, second.y });
-            const new_antinodes = calculateAntinodes(first, second);
-            for (new_antinodes) |new| {
-                // check if antinodes is valid
-                if (new.x < 0 or new.y < 0 or new.x >= width or new.y >= height)
-                    continue;
-                try antinodes.*.put(new, {});
+fn getAllAntinodes(map: Map, antinodes: *std.AutoHashMap(Position, void)) !void {
+    var antenna_types = map.antennas.keyIterator();
+    while (antenna_types.next()) |antenna_type| {
+        const antennas = map.antennas.get(antenna_type.*).?;
+        for (antennas, 1..) |first, i| {
+            for (antennas[i..]) |second| {
+                const new_antinodes = calculateAntinodes(first, second);
+                for (new_antinodes) |new| {
+                    // check if antinodes is valid
+                    if (new.x < 0 or new.y < 0 or new.x >= map.width or new.y >= map.height)
+                        continue;
+                    try antinodes.*.put(new, {});
+                }
             }
         }
     }
-    std.debug.print("\n", .{});
 }
 
 test getAllAntinodes {
@@ -163,12 +162,8 @@ test getAllAntinodes {
     var antinodes = std.AutoHashMap(Position, void).init(allocator);
 
     std.debug.print("Calculating all antinodes...", .{});
-    const antennas = try parseInput(allocator, example);
-    var antenna_types = antennas.keyIterator();
-    while (antenna_types.next()) |antenna_type| {
-        std.debug.print("\n{c}: {any}", .{ antenna_type.*, antennas.get(antenna_type.*) });
-        try getAllAntinodes(antennas.get(antenna_type.*).?, &antinodes, 12, 12);
-    }
+    const map = try parseInput(allocator, example);
+    try getAllAntinodes(map, &antinodes);
     std.debug.print("\n\nNumber of antinodes: {d}", .{antinodes.count()});
     try expectEqual(14, antinodes.count());
 }
