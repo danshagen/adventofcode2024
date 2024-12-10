@@ -9,7 +9,7 @@ pub fn main() !void {
     std.debug.print("\nDefragmenting disk...\n", .{});
     const disk_map = try parseInput(allocator, input[0 .. input.len - 1]);
     defer allocator.free(disk_map);
-    defragDisk(disk_map);
+    defragDisk(disk_map, false);
 
     var checksum: usize = 0;
     for (disk_map, 0..) |block, idx| {
@@ -65,7 +65,7 @@ test parseInput {
     defer allocator.free(disk_map);
 }
 
-fn defragDisk(disk_map: DiskMap) void {
+fn defragDisk(disk_map: DiskMap, print: bool) void {
     var file_index: usize = disk_map.len - 1;
 
     defrag_loop: while (file_index > 0) {
@@ -83,11 +83,13 @@ fn defragDisk(disk_map: DiskMap) void {
         const file_start = file_index + 1;
         const file_len = file_end - file_start + 1;
 
-        // std.debug.print("\n", .{});
-        // for (0..file_start) |_|
-        //     std.debug.print(" ", .{});
-        // for (0..file_len) |_|
-        //     std.debug.print("^", .{});
+        if (print) {
+            std.debug.print("\n", .{});
+            for (0..file_start) |_|
+                std.debug.print(" ", .{});
+            for (0..file_len) |_|
+                std.debug.print("^", .{});
+        }
 
         // find free space large enough for file
         var free_index: usize = 0;
@@ -98,17 +100,19 @@ fn defragDisk(disk_map: DiskMap) void {
             } else {
                 free_len = 0;
             }
-            free_index += 1;
-            if (free_index == file_index or free_index == disk_map.len)
+            if (free_index > file_index or free_index == disk_map.len)
                 continue :defrag_loop;
+            free_index += 1;
         }
         const free_start = free_index - free_len;
 
-        // std.debug.print("\n", .{});
-        // for (0..free_start) |_|
-        //     std.debug.print(" ", .{});
-        // for (0..free_len) |_|
-        //     std.debug.print("v", .{});
+        if (print) {
+            std.debug.print("\n", .{});
+            for (0..free_start) |_|
+                std.debug.print(" ", .{});
+            for (0..free_len) |_|
+                std.debug.print("v", .{});
+        }
 
         // move file to space
         for (0..file_len) |i| {
@@ -116,14 +120,16 @@ fn defragDisk(disk_map: DiskMap) void {
             disk_map[file_start + i] = null;
         }
 
-        // std.debug.print("\n", .{});
-        // for (disk_map) |block| {
-        //     if (block != null) {
-        //         std.debug.print("{d}", .{block.?});
-        //     } else {
-        //         std.debug.print(".", .{});
-        //     }
-        // }
+        if (print) {
+            std.debug.print("\n", .{});
+            for (disk_map) |block| {
+                if (block != null) {
+                    std.debug.print("{d}", .{block.?});
+                } else {
+                    std.debug.print(".", .{});
+                }
+            }
+        }
     }
 }
 
@@ -134,7 +140,7 @@ test defragDisk {
     const disk_map = try parseInput(allocator, example);
     defer allocator.free(disk_map);
 
-    defragDisk(disk_map);
+    defragDisk(disk_map, true);
 
     var checksum: usize = 0;
     for (disk_map, 0..) |block, idx| {
@@ -144,13 +150,14 @@ test defragDisk {
     try expectEqual(2858, checksum);
 }
 
-test edgecase {
+test "edgecase" {
+    const allocator = std.testing.allocator;
     const example = "354631466260";
 
     const disk_map = try parseInput(allocator, example);
     defer allocator.free(disk_map);
 
-    defragDisk(disk_map);
+    defragDisk(disk_map, true);
 
     var checksum: usize = 0;
     for (disk_map, 0..) |block, idx| {
