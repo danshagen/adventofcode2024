@@ -2,17 +2,15 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
 pub fn main() !void {
-    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    // defer arena.deinit();
-    // const allocator = arena.allocator();
-    // const input = @embedFile("input.txt");
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const input = @embedFile("input.txt");
 
-    // var antinodes = std.AutoHashMap(Position, void).init(allocator);
-
-    // std.debug.print("Calculating all antinodes...", .{});
-    // const map = try parseInput(allocator, input);
-    // try getAllAntinodes(allocator, map, &antinodes);
-    // std.debug.print("\n\nNumber of antinodes: {d}", .{antinodes.count()});
+    std.debug.print("\nCalculating all trails to peaks...", .{});
+    const map = try parseInput(allocator, input);
+    const peaks = try calcTrailheadScores(allocator, map);
+    std.debug.print("\npeaks: {d}", .{peaks});
 }
 
 fn parseInput(allocator: std.mem.Allocator, input: []const u8) ![][]u8 {
@@ -29,7 +27,28 @@ fn parseInput(allocator: std.mem.Allocator, input: []const u8) ![][]u8 {
     return try map.toOwnedSlice();
 }
 
-test parseInput {
+const Position = struct {
+    x: i32,
+    y: i32,
+};
+
+fn calcTrailheadScores(allocator: std.mem.Allocator, map: [][]u8) !usize {
+    var score: usize = 0;
+    // for all trailheads
+    for (map, 0..) |row, y| {
+        for (row, 0..) |height, x| {
+            if (height == 0) {
+                // trailhead
+                var peaks = std.AutoHashMap(Position, void).init(allocator);
+                try findTrails(&peaks, map, .{ .x = @intCast(x), .y = @intCast(y) });
+                score += peaks.count();
+            }
+        }
+    }
+    return score;
+}
+
+test calcTrailheadScores {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -44,6 +63,36 @@ test parseInput {
         \\01329801
         \\10456732
     ;
-    const map = parseInput(allocator, example);
-    std.debug.print("{any}", .{map});
+
+    const map = try parseInput(allocator, example);
+    try expectEqual(36, try calcTrailheadScores(allocator, map));
+}
+
+fn findTrails(peaks: *std.AutoHashMap(Position, void), map: [][]u8, start: Position) !void {
+    const height = map[@intCast(start.y)][@intCast(start.x)];
+    // std.debug.print("\n{d},{d}: {d}", .{ start.x, start.y, height });
+    // check all directions
+    const directions: [4]Position = .{ .{ .x = 0, .y = 1 }, .{ .x = 1, .y = 0 }, .{ .x = -1, .y = 0 }, .{ .x = 0, .y = -1 } };
+    for (directions) |direction| {
+        const new_position = .{
+            .x = start.x + direction.x,
+            .y = start.y + direction.y,
+        };
+        // continue with next position if not a valid position
+        if (new_position.x < 0 or new_position.y < 0 or new_position.x >= map[0].len or new_position.y >= map.len)
+            continue;
+
+        const new_height = map[@intCast(new_position.y)][@intCast(new_position.x)];
+        // if one higher, found a trail
+        if (new_height > height and new_height - height == 1) {
+            if (new_height == 9) {
+                // found peak
+                try peaks.*.put(new_position, {});
+                // std.debug.print("\npeak: {d},{d}: {d}", .{ new_position.x, new_position.y, new_height });
+            } else {
+                // recurse
+                try findTrails(peaks, map, new_position);
+            }
+        }
+    }
 }
