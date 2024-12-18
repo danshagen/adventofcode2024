@@ -101,10 +101,10 @@ const Processor = struct {
         // process opcode
         switch (opcode) {
             Opcode.adv => {
-                // A = A / 2**literal
-                const denominator = std.math.pow(u32, 2, literal);
+                // A = A / 2**combo
+                const denominator = std.math.pow(u32, 2, combo);
                 const result = self.A / denominator;
-                std.debug.print(" | A / 2 ** literal = {d} / 2**{d} = {d} / {d} = {d}", .{ self.A, literal, self.A, denominator, result });
+                std.debug.print(" | A / 2 ** combo = {d} / 2**{d} = {d} / {d} = {d}", .{ self.A, combo, self.A, denominator, result });
                 self.A = result;
             },
             Opcode.bxl => {
@@ -129,17 +129,17 @@ const Processor = struct {
                 output = combo % 8;
             },
             Opcode.bdv => {
-                // B = A / 2**literal
-                const denominator = std.math.pow(u32, 2, literal);
+                // B = A / 2**combo
+                const denominator = std.math.pow(u32, 2, combo);
                 const result = self.A / denominator;
-                std.debug.print(" | A / 2 ** literal = {d} / 2**{d} = {d} / {d} = {d}", .{ self.A, literal, self.A, denominator, result });
+                std.debug.print(" | A / 2 ** combo = {d} / 2**{d} = {d} / {d} = {d}", .{ self.A, combo, self.A, denominator, result });
                 self.B = result;
             },
             Opcode.cdv => {
-                // C = A / 2**literal
-                const denominator = std.math.pow(u32, 2, literal);
+                // C = A / 2**combo
+                const denominator = std.math.pow(u32, 2, combo);
                 const result = self.A / denominator;
-                std.debug.print(" | A / 2 ** literal = {d} / 2**{d} = {d} / {d} = {d}", .{ self.A, literal, self.A, denominator, result });
+                std.debug.print(" | A / 2 ** combo = {d} / 2**{d} = {d} / {d} = {d}", .{ self.A, combo, self.A, denominator, result });
                 self.C = result;
             },
         }
@@ -189,4 +189,85 @@ test Processor {
     for (correct_outputs, outputs.items) |correct, output| {
         try expectEqual(correct, output);
     }
+
+    // run single examples
+    // If register C contains 9, the program 2,6 would set register B to 1
+    processor.halted = false;
+    processor.IP = 0;
+
+    processor.C = 9;
+    var example_1 = [_]u3{ 2, 6 };
+    processor.program = example_1[0..];
+    _ = processor.process();
+    try expectEqual(1, processor.B);
+
+    // If register A contains 10, the program 5,0,5,1,5,4 would output 0,1,2.
+    processor.halted = false;
+    processor.IP = 0;
+    outputs.clearRetainingCapacity();
+
+    processor.A = 10;
+    var example_2 = [_]u3{ 5, 0, 5, 1, 5, 4 };
+    processor.program = example_2[0..];
+    while (!processor.halted) {
+        processor.print();
+        if (processor.process()) |output| {
+            try outputs.append(output);
+        }
+    }
+    const correct_outputs_2 = [_]u32{ 0, 1, 2 };
+    try expectEqual(correct_outputs_2.len, outputs.items.len);
+    for (correct_outputs_2, outputs.items) |correct, output| {
+        try expectEqual(correct, output);
+    }
+
+    // If register A contains 2024, the program 0,1,5,4,3,0 would output 4,2,5,6,7,7,7,7,3,1,0 and leave 0 in register A.
+    processor.halted = false;
+    processor.IP = 0;
+    outputs.clearRetainingCapacity();
+
+    processor.A = 2024;
+    var example_3 = [_]u3{ 0, 1, 5, 4, 3, 0 };
+    processor.program = example_3[0..];
+    while (!processor.halted) {
+        processor.print();
+        if (processor.process()) |output| {
+            try outputs.append(output);
+        }
+    }
+    const correct_outputs_3 = [_]u32{ 4, 2, 5, 6, 7, 7, 7, 7, 3, 1, 0 };
+    try expectEqual(correct_outputs_3.len, outputs.items.len);
+    for (correct_outputs_3, outputs.items) |correct, output| {
+        try expectEqual(correct, output);
+    }
+    try expectEqual(0, processor.A);
+
+    // If register B contains 29, the program 1,7 would set register B to 26.
+    processor.halted = false;
+    processor.IP = 0;
+
+    processor.B = 29;
+    var example_4 = [_]u3{ 1, 7 };
+    processor.program = example_4[0..];
+    while (!processor.halted) {
+        processor.print();
+        _ = processor.process();
+    }
+
+    try expectEqual(26, processor.B);
+
+    // If register B contains 2024 and register C contains 43690, the program 4,0 would set register B to 44354.
+    processor.halted = false;
+    processor.IP = 0;
+
+    processor.B = 2024;
+    processor.C = 43690;
+    var example_5 = [_]u3{ 4, 0 };
+    processor.program = example_5[0..];
+    while (!processor.halted) {
+        processor.print();
+        _ = processor.process();
+    }
+
+    try expectEqual(44354, processor.B);
 }
